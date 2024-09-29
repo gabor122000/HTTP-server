@@ -3,7 +3,7 @@
 #include <ESP8266WebServer.h>
 #include <ArduinoJson.h>
 
-// Replace with your network credentials
+// WiFi belépési azonosítók
 const char* ssid = "DESKTOP1";
 const char* password = "veressgabor";
 
