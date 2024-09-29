@@ -7,7 +7,7 @@
 const char* ssid = "DESKTOP1";
 const char* password = "veressgabor";
 
-// Prometheus server details
+// Prometheus szerver adatai
 const char* prometheus_server = "192.168.137.1";  // Replace with your Prometheus server IP or URL
 const int prometheus_port = 9090;                        // Default Prometheus port
 const char* query = "/api/v1/query?query=esp8266_total_current";
