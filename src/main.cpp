@@ -7,24 +7,24 @@
 const char* ssid = "DESKTOP1";
 const char* password = "veressgabor";
 
-// Prometheus szerver adatai
-const char* prometheus_server = "192.168.137.1";  // Replace with your Prometheus server IP or URL
-const int prometheus_port = 9090;                        // Default Prometheus port
-const char* query = "/api/v1/query?query=esp8266_total_current";
+// Prometheus szerver adatok
+const char* prometheus_server = "192.168.137.1";  // Prometheus URL
+const int prometheus_port = 9090;                        // Prometheus Port
+const char* query = "/api/v1/query?query=esp8266_total_current"; // Most az összegzett áramot kérdezi le, majd módosítani, hogy más adatokat is lekérdezzen
 
-// ESP8266 HTTP Server on port 8663
+// ESP8266 HTTP Server port 8663
 ESP8266WebServer server(8663);
 
 // Variables for storing metrics
-float current0 = 1.2;          // Example value for "current0"
-float current1 = 2.5;          // Example value for "current1"
-float connection = 1.0;       // Example value for "connection"
-float prometheusValue = 0.0;  // Store the queried value from Prometheus
+float current0 = 1.2;          // "current0" példa érték
+float current1 = 2.5;          // "current1" példa érték
+float connection = 1.0;       // "connection" példa érték
+float prometheusValue = 0.0;  // Lekérdezett érték tárolásához
 
-// Function to handle /metrics endpoint for Prometheus scraping
-void handleMetrics() {
+// /metrics endpoint kezelése
+void sendMetricsToEndpoint() {
 
-  // Prepare the Prometheus-compatible metrics format
+  // Promtheus formátum létrehozása
   String metrics = "";
   metrics += "# HELP esp8266_current Current sensor reading.\n";
   metrics += "# TYPE esp8266_current gauge\n";
@@ -38,40 +38,38 @@ void handleMetrics() {
   metrics += "# TYPE esp8266_connection gauge\n";
   metrics += "esp8266_connection " + String(connection, 2) + "\n";
   
-  // Send the metrics to Prometheus
+  // Metrikák küldése prometheusnak
   server.send(200, "text/plain", metrics);
 }
 
-// Function to query Prometheus and update `prometheusValue` variable
+// Prometheus lekérdezése és "prometheusValue" frissítése
 void queryPrometheus() {
-  // Check Wi-Fi connection status
+  // WiFi csatalkozás ellenörzése
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi not connected, skipping query.");
     return;
   }
 
-  // Create the URL for the Prometheus query
+  // Prometheus URL
   String url = String("http://") + prometheus_server + ":" + prometheus_port + query;
 
-  // Use WiFiClient and HTTPClient to make the request
-  WiFiClient client;  // Create WiFiClient object
+  // Szükséges WiFi és http clientek létrehozása
+  WiFiClient client;
   HTTPClient http;
-  http.begin(client, url);  // Use the new API: http.begin(WiFiClient, URL)
+  http.begin(client, url); //HTTP API
   
-  int httpCode = http.GET();  // Send the request
+  int httpCode = http.GET();  // Kérés
 
-  // Check the returning code
+  // Kód ellenörzése
   if (httpCode > 0) {
-    // HTTP header has been sent and server response header has been handled
+    // Header kezelése
     Serial.printf("GET request to %s: [HTTP Code: %d]\n", url.c_str(), httpCode);
 
-    // File found at server
     if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
       Serial.println("Response from Prometheus:");
-      Serial.println(payload);  // Print the returned data from Prometheus
+      Serial.println(payload);  // Adat JSON-be nyomtatása
 
-      // Parse the JSON response
       DynamicJsonDocument doc(1024);
       DeserializationError error = deserializeJson(doc, payload);
 
@@ -81,15 +79,15 @@ void queryPrometheus() {
         return;
       }
 
-      // Access the JSON structure to get the value
+      // Adat kinyerése a JSON fileból
       const char* status = doc["status"];
       if (String(status) == "success") {
-        // Extract the value as a string
+        // Stringbe kinyerés
         const char* valueStr = doc["data"]["result"][0]["value"][1];
-        // Convert the extracted string value to float and update `prometheusValue`
+        // stringből float-á alakítás
         prometheusValue = String(valueStr).toFloat();
 
-        // Output the result
+        // kiírás ellenörzés céljából
         Serial.print("Extracted Prometheus Value: ");
         Serial.println(prometheusValue);
       }
@@ -98,14 +96,14 @@ void queryPrometheus() {
     Serial.printf("GET request failed, error: %s\n", http.errorToString(httpCode).c_str());
   }
 
-  http.end();  // Close connection
+  http.end();  // Lecsatalkozás
 }
 
 void setup() {
   Serial.begin(115200);
   delay(10);
 
-  // Connect to Wi-Fi
+  // WiFi csatalkozás
   Serial.println();
   Serial.print("Connecting to ");
   Serial.println(ssid);
@@ -122,23 +120,23 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   // Start the HTTP server
-  server.on("/metrics", handleMetrics);  // Define the /metrics route
+  server.on("/metrics", sendMetricsToEndpoint);  // /metrics létrehozása
   server.begin();
   Serial.println("HTTP server started on port 8266");
 
-  // Initial query to Prometheus
+  // lekérdezés
   queryPrometheus();
 }
 
 void loop() {
-  // Handle HTTP client requests
+  // HTTP kliens kérések kezelése
   server.handleClient();
 
-  // Periodically query Prometheus every 30 seconds
+  // 30másodpercenként lekérdezés ismétlése
   static unsigned long lastQueryTime = 0;
   unsigned long currentTime = millis();
 
-  if (currentTime - lastQueryTime >= 30000) {  // 30 seconds interval
+  if (currentTime - lastQueryTime >= 30000) {
     queryPrometheus();
     lastQueryTime = currentTime;
   }
